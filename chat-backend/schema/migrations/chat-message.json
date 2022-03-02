@@ -1,0 +1,27 @@
+{
+    "TableName": "chat-message-dev",
+    "KeySchema": [
+        {
+            "AttributeName": "id",
+            "KeyType": "HASH"
+        },
+        {
+            "AttributeName": "chat_id",
+            "KeyType": "RANGE"
+        }
+    ],
+    "AttributeDefinitions": [
+        {
+            "AttributeName": "id",
+            "AttributeType": "S"
+        },
+        {
+            "AttributeName": "chat_id",
+            "AttributeType": "N"
+        }
+    ],
+    "ProvisionedThroughput": {
+        "ReadCapacityUnits": 10,
+        "WriteCapacityUnits": 5
+    }
+}

@@ -1,0 +1,146 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: chat
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  region: eu-central-1
+  apiGateway:
+    shouldStartNameWithService: true
+  httpApi:
+    cors: true
+  environment:
+    WEBSOCKETS_API:
+      Ref: WebsocketsApi
+    REGION: ${opt:region, self:provider.region}
+    API_GATEWAY_ENDPOINT:
+      Fn::Join:
+        - ""
+        - - Ref: WebsocketsApi
+          - .execute-api.
+          - Ref: ${opt:region, self:provider.region}
+          - .amazonaws.com/
+          - ${opt:stage, sls:stage}
+
+    CHAT_TABLE: ${self:service}-${opt:stage, sls:stage}
+    CHAT_MESSAGE_TABLE: ${self:service}-message-${opt:stage, sls:stage}
+    CHAT_CONNECTION_TABLE: ${self:service}-connection-${opt:stage, sls:stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CHAT_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.CHAT_MESSAGE_TABLE}"
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-offline
+
+functions:
+  chat-create:
+    handler: src/functions/chat.create
+    events:
+      - httpApi:
+          path: /api/chat
+          method: post
+  chat-send-message:
+    handler: src/functions/chat.sendMessage
+    events:
+      - httpApi:
+          path: /api/chat/{id}/message
+          method: post
+  chat-get-message:
+    handler: src/functions/chat.getMessages
+    events:
+      - httpApi:
+          path: /api/chat/{id}/message
+          method: get
+
+  chat-websocket:
+    handler: src/websocket/chat.handler
+    events:
+      - websocket:
+          route: $connect
+
+      - websocket:
+          route: $default
+
+      - websocket:
+          route: $disconnect
+
+resources:
+  Resources:
+    chatTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "N"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: "NEW_AND_OLD_IMAGES"
+        TableName: ${self:provider.environment.CHAT_TABLE}
+    ChatMessageTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "N"
+          - AttributeName: "chat_id"
+            AttributeType: "N"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+          - AttributeName: "chat_id"
+            KeyType: "RANGE"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: "NEW_AND_OLD_IMAGES"
+        TableName: ${self:provider.environment.CHAT_MESSAGE_TABLE}
+    ChatConnectionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: "connection_id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "connection_id"
+            KeyType: "HASH"
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        StreamSpecification:
+          StreamViewType: "NEW_AND_OLD_IMAGES"
+        TableName: ${self:provider.environment.CHAT_CONNECTION_TABLE}

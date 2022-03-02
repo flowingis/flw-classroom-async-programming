@@ -1,0 +1,70 @@
+version: "3.8"
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:1.16.0
+    container_name: app-dynamodb
+    hostname: app-dynamodb
+    volumes:
+      - app_dynamodb:/home/dynamodblocal
+    working_dir: /home/dynamodblocal
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ."
+    restart: unless-stopped
+
+  dynamodb_admin:
+    image: aaronshaf/dynamodb-admin
+    container_name: app-dynamodb_admin
+    ports:
+      - "8001:8001"
+    environment:
+      - DYNAMO_ENDPOINT=http://app-dynamodb:8000
+    depends_on:
+      - dynamodb
+    restart: unless-stopped
+
+  dynamodb_migrator-1:
+    image: amazon/aws-cli
+    container_name: app-dynamodb_migrator-1
+    working_dir: /home/dynamodblocal
+    command: dynamodb create-table --cli-input-json file://chat.json --endpoint-url http://app-dynamodb:8000
+    volumes:
+      - ./schema/migrations:/home/dynamodblocal
+    environment:
+      - AWS_ACCESS_KEY_ID=unicorn_user
+      - AWS_SECRET_ACCESS_KEY=magical_password
+      - AWS_DEFAULT_REGION=eu-central-1
+    depends_on:
+      - dynamodb
+
+  dynamodb_migrator-2:
+    image: amazon/aws-cli
+    container_name: app-dynamodb_migrator-2
+    working_dir: /home/dynamodblocal
+    command: dynamodb create-table --cli-input-json file://chat-message.json --endpoint-url http://app-dynamodb:8000
+    volumes:
+      - ./schema/migrations:/home/dynamodblocal
+    environment:
+      - AWS_ACCESS_KEY_ID=unicorn_user
+      - AWS_SECRET_ACCESS_KEY=magical_password
+      - AWS_DEFAULT_REGION=eu-central-1
+    depends_on:
+      - dynamodb
+
+  dynamodb_migrator-3:
+    image: amazon/aws-cli
+    container_name: app-dynamodb_migrator-3
+    working_dir: /home/dynamodblocal
+    command: dynamodb create-table --cli-input-json file://chat-connection.json --endpoint-url http://app-dynamodb:8000
+    volumes:
+      - ./schema/migrations:/home/dynamodblocal
+    environment:
+      - AWS_ACCESS_KEY_ID=unicorn_user
+      - AWS_SECRET_ACCESS_KEY=magical_password
+      - AWS_DEFAULT_REGION=eu-central-1
+    depends_on:
+      - dynamodb
+
+volumes:
+  app_dynamodb:
+    driver: local
