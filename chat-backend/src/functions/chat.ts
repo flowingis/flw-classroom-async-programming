@@ -2,15 +2,6 @@ import type { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ChatId, GetChatMessagesDto, PostChatMessageDto } from "../dto/chat";
 import chatRepository from "../repository/chatRepository";
 
-export const get = async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ hello: "world" }),
-  };
-};
-
 export const create = async (): Promise<APIGatewayProxyResult> => {
   try {
     return {
