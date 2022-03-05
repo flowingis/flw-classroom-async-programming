@@ -1,11 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import AWS from "aws-sdk";
+import { createApiGateway } from "../apiGateway";
 import { ChatId, ChatMessageDto, ConnectionId } from "../dto/chat";
 import chatRepository from "../repository/chatRepository";
-
-const apig = new AWS.ApiGatewayManagementApi({
-  endpoint: process.env.API_GATEWAY_ENDPOINT,
-});
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -30,19 +26,18 @@ export const handler = async (
             };
           }
           await chatRepository.addConnection(chatId, connId);
+          const apig = createApiGateway();
           const connections = await chatRepository.geChatConnections(chatId);
-          // await Promise.all(
-          //   connections
-          //     .filter(id => id !== connId)
-          //     .map(async id => {
-          //       await apig
-          //         .postToConnection({
-          //           ConnectionId: id,
-          //           Data: `A new connection has been established`,
-          //         })
-          //         .promise();
-          //     })
-          // );
+          connections.filter(id => id !== connId).map(id => {
+              apig.postToConnection({
+                  ConnectionId: id,
+                  Data: JSON.stringify({
+                    from: connId, 
+                    type: 'info',
+                    message: `joined the chat`
+                  }, null, 2),
+              }).send();
+          });
         } catch (error) {
           console.log(error);
           return {
@@ -54,7 +49,30 @@ export const handler = async (
       break;
 
     case "$disconnect":
-      await chatRepository.removeConnection(connId);
+      {
+        try {
+          const apig = createApiGateway();
+          const chatId = await chatRepository.getChatByConnectionId(connId);
+          await chatRepository.removeConnection(connId);
+          const connections = await chatRepository.geChatConnections(chatId);
+          connections.filter(id => id !== connId).map(id => {
+              apig.postToConnection({
+                  ConnectionId: id,
+                  Data: JSON.stringify({
+                    from: connId, 
+                    type: 'info',
+                    message: `left the chat`
+                  }, null, 2),
+              }).send();
+          });
+        } catch(error) {
+          console.error(error);
+          return {
+            statusCode: 500,
+            body: JSON.stringify({ error: "Internal Server Error" }),
+          };
+        }
+      }
       break;
 
     case "$default":
@@ -64,19 +82,18 @@ export const handler = async (
           const chatId = await chatRepository.getChatByConnectionId(connId);
           const message = ChatMessageDto.parse(body);
           await chatRepository.saveMessage(chatId, message);
+          const apig = createApiGateway();
           const connections = await chatRepository.geChatConnections(chatId);
-          // await Promise.all(
-          //   connections
-          //     .filter(id => id !== connId)
-          //     .map(async id => {
-          //       await apig
-          //         .postToConnection({
-          //           ConnectionId: id,
-          //           Data: message,
-          //         })
-          //         .promise();
-          //     })
-          // );
+          connections.filter(id => id !== connId).map(id => {
+              apig.postToConnection({
+                  ConnectionId: id,
+                  Data: JSON.stringify({
+                    from: connId,
+                    type: 'message',
+                    message
+                  }, null, 2),
+              }).send();
+          });
         } catch (error) {
           console.error(error);
           return {
